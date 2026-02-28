@@ -1,84 +1,26 @@
-name: Build APK (Private Repo)
+name: Build APK
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Bisa dijalankan manual
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Compile APK
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Auto untuk private repo
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            python3-dev \
-            git \
-            unzip \
-            openjdk-17-jdk \
-            zlib1g-dev \
-            libncurses5-dev \
-            libgdbm-dev \
-            libnss3-dev \
-            libssl-dev \
-            libreadline-dev \
-            libffi-dev \
-            libsqlite3-dev \
-            libbz2-dev \
-            wget \
-            curl \
-            build-essential \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake
-      
-      - name: Install Buildozer
-        run: |
-          pip install --user cython virtualenv
-          pip install --user buildozer
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
-      - name: Cache Buildozer dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-
       
       - name: Build with Buildozer
-        run: |
-          buildozer android debug
-        env:
-          # Untuk private repo, pastikan tidak ada yang memerlukan auth
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Upload APK as Artifact
-        uses: actions/upload-artifact@v3
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
-          name: RNSMV2-APK-Private
-          path: bin/*.apk
-          retention-days: 90  # Simpan 90 hari
+          workdir: .
+          buildozer_version: master
       
-      - name: Get APK info
-        run: |
-          echo "✅ Build selesai!"
-          ls -la bin/
-          echo "Ukuran APK:"
-          du -sh bin/*.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RNSMV2-APK
+          path: ${{ steps.buildozer.outputs.filename }}
