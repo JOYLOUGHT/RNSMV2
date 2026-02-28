@@ -9,18 +9,113 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          workdir: .
-          buildozer_version: master
+          python-version: '3.11'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            python3-dev \
+            git \
+            unzip \
+            openjdk-17-jdk \
+            zlib1g-dev \
+            libncurses5-dev \
+            libgdbm-dev \
+            libnss3-dev \
+            libssl-dev \
+            libreadline-dev \
+            libffi-dev \
+            libsqlite3-dev \
+            libbz2-dev \
+            wget \
+            curl \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            sudo \
+            lsof
+      
+      - name: Install Buildozer
+        run: |
+          pip install --user --upgrade pip
+          pip install --user cython virtualenv
+          pip install --user buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Cache Buildozer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+      
+      - name: Build with Buildozer
+        run: |
+          # Fix permission issues
+          export USER=runner
+          export HOME=/home/runner
+          
+          # Clean previous builds
+          rm -rf .buildozer bin || true
+          
+          # Run buildozer
+          buildozer android debug || true
+          
+          # Check if APK was created
+          if [ -f bin/*.apk ]; then
+            echo "✅ APK berhasil dibuat!"
+            ls -la bin/
+          else
+            echo "❌ APK gagal dibuat, coba dengan opsi lain..."
+            # Coba dengan arsitektur spesifik
+            buildozer android debug --arch=armeabi-v7a
+          fi
+      
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find bin -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+            echo "✅ APK ditemukan: $APK_PATH"
+          else
+            echo "❌ APK tidak ditemukan"
+          fi
       
       - name: Upload APK
+        if: steps.find_apk.outputs.apk_path != ''
         uses: actions/upload-artifact@v4
         with:
           name: RNSMV2-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: .buildozer/*.log
+          retention-days: 7
+      
+      - name: Show result
+        run: |
+          echo "📱 Build process selesai"
+          if [ -f bin/*.apk ]; then
+            echo "✅ APK tersedia di artifacts"
+          else
+            echo "❌ Build gagal, cek log untuk detail"
+          fi
