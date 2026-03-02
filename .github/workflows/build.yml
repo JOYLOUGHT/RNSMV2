@@ -9,42 +9,68 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip openjdk-17-jdk git unzip
-          pip3 install buildozer cython virtualenv
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            python3-dev \
+            git \
+            unzip \
+            openjdk-17-jdk \
+            wget \
+            curl \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            libncurses5 \
+            libncurses5-dev \
+            libstdc++6
+        
+      - name: Install Python packages
+        run: |
+          pip3 install --user --upgrade pip
+          pip3 install --user buildozer cython virtualenv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       
-      - name: Debug - List files before build
+      - name: Setup Android SDK manually
         run: |
-          echo "📁 Current directory:"
-          pwd
-          echo "📄 All files:"
-          ls -la
-          echo "📄 Check main.py:"
-          cat main.py | head -20
+          # Setup Android SDK directory
+          mkdir -p $HOME/.buildozer/android/platform
+          cd $HOME/.buildozer/android/platform
+          
+          # Download Android SDK command line tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p android-sdk/cmdline-tools
+          mv cmdline-tools android-sdk/cmdline-tools/latest
+          
+          # Set environment variables
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # Accept all licenses automatically
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          
+          # Install required components
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-31" \
+            "build-tools;31.0.0" \
+            "build-tools;33.0.0"
+          
+          echo "✅ Android SDK setup complete"
       
       - name: Build APK
         run: |
+          export USER=runner
           buildozer android debug
       
-      - name: Debug - List files after build
-        run: |
-          echo "📁 After build:"
-          ls -la
-          echo "📁 Check bin folder:"
-          ls -la bin/ || echo "bin folder tidak ada"
-          echo "📁 Check .buildozer folder:"
-          ls -la .buildozer/ || echo ".buildozer folder tidak ada"
-          echo "🔍 Cari file .apk:"
-          find . -name "*.apk" || echo "Tidak ada file .apk"
-      
-      - name: Upload all artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: build-results
-          path: |
-            **/*.apk
-            **/*.log
-            bin/
-            .buildozer/
+          name: RNSMV2-APK
+          path: bin/*.apk
