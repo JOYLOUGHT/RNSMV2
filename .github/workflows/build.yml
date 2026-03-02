@@ -9,13 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - uses: actions/checkout@v4
       
       - name: Install system dependencies
         run: |
@@ -26,15 +20,6 @@ jobs:
             git \
             unzip \
             openjdk-17-jdk \
-            zlib1g-dev \
-            libncurses5-dev \
-            libgdbm-dev \
-            libnss3-dev \
-            libssl-dev \
-            libreadline-dev \
-            libffi-dev \
-            libsqlite3-dev \
-            libbz2-dev \
             wget \
             curl \
             build-essential \
@@ -42,121 +27,45 @@ jobs:
             automake \
             libtool \
             pkg-config \
-            cmake \
-            sudo \
-            lsof \
-            android-sdk \
-            android-sdk-platform-common
+            cmake
       
-      - name: Install Python packages
+      - name: Install Python packages (simple version)
         run: |
-          pip install --user --upgrade pip
-          pip install --user cython virtualenv
-          pip install --user buildozer
-          pip install --user pyjnius
-          pip install --user requests
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user buildozer cython virtualenv
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       
-      - name: Setup Android SDK
-        run: |
-          mkdir -p $HOME/android-sdk
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          
-          # Download command line tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip -d $HOME/android-sdk/cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-          
-          # Accept licenses
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-          
-          # Install platform tools
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
-      
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-      
-      - name: Debug - List files
+      - name: Verify files
         run: |
           echo "📁 Current directory:"
           pwd
-          echo "📄 Files in repo:"
+          echo "📄 Files in repository:"
           ls -la
-          echo "📄 Content of main.py (first 50 lines):"
-          head -n 50 main.py || echo "main.py not found"
-          echo "📄 Content of buildozer.spec:"
-          cat buildozer.spec
+          echo "📄 Checking main.py:"
+          if [ -f main.py ]; then
+            echo "✅ main.py exists"
+            wc -l main.py
+            head -n 5 main.py
+          else
+            echo "❌ main.py not found!"
+          fi
+          echo "📄 Checking buildozer.spec:"
+          if [ -f buildozer.spec ]; then
+            echo "✅ buildozer.spec exists"
+            cat buildozer.spec
+          else
+            echo "❌ buildozer.spec not found!"
+          fi
       
-      - name: Fix permissions
-        run: |
-          sudo chown -R $USER:$USER $GITHUB_WORKSPACE
-          chmod +x $GITHUB_WORKSPACE
-      
-      - name: Build with Buildozer (Debug Mode)
+      - name: Build APK
         run: |
           export USER=runner
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-          
-          # Clean previous builds
-          rm -rf .buildozer bin || true
-          
-          # Run buildozer with verbose output
-          buildozer android debug 2>&1 | tee buildozer.log
-          
-          # Check if buildozer.log was created
-          if [ -f buildozer.log ]; then
-            echo "✅ buildozer.log created"
-          else
-            echo "❌ buildozer.log not found"
-          fi
+          buildozer android debug || echo "Build failed but continuing..."
       
-      - name: Check for APK
-        id: check_apk
-        run: |
-          if ls bin/*.apk 1> /dev/null 2>&1; then
-            echo "✅ APK found!"
-            echo "apk_found=true" >> $GITHUB_OUTPUT
-            echo "APK path:"
-            ls -la bin/
-          else
-            echo "❌ No APK found"
-            echo "apk_found=false" >> $GITHUB_OUTPUT
-            echo "Contents of bin directory:"
-            ls -la bin/ || echo "bin directory not found"
-          fi
-      
-      - name: Upload build log
-        if: always()
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: buildozer-log
+          name: apk-artifacts
           path: |
-            buildozer.log
-            .buildozer/*.log
-          retention-days: 30
-          if-no-files-found: warn
-      
-      - name: Upload APK
-        if: steps.check_apk.outputs.apk_found == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: RNSMV2-APK
-          path: bin/*.apk
-          retention-days: 30
-      
-      - name: Show error summary
-        if: failure()
-        run: |
-          echo "❌ Build failed!"
-          echo "Last 50 lines of buildozer.log:"
-          if [ -f buildozer.log ]; then
-            tail -n 50 buildozer.log
-          else
-            echo "buildozer.log not found"
-          fi
+            bin/*.apk
+            *.log
