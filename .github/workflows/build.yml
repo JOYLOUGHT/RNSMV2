@@ -14,59 +14,56 @@ jobs:
         with:
           python-version: '3.9'
       
-      - name: Install dependencies
+      - name: Install dependencies with fix
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip openjdk-17-jdk git unzip wget
-          pip3 install buildozer cython virtualenv
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            git \
+            unzip \
+            openjdk-17-jdk \
+            wget \
+            curl \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libreadline-dev \
+            libsqlite3-dev \
+            libgdbm-dev \
+            libbz2-dev \
+            libexpat1-dev \
+            liblzma-dev \
+            zlib1g-dev \
+            uuid-dev \
+            libffi8 \
+            libffi-dev \
+            m4 \
+            libtool-bin
+          
+          # Install Python packages
+          pip3 install --user --upgrade pip
+          pip3 install --user buildozer cython virtualenv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       
-      - name: Setup Android SDK dengan symlink
+      - name: Setup Android SDK (sederhana)
         run: |
-          # Bersihkan folder lama
-          rm -rf $HOME/android-sdk
-          rm -rf $HOME/.buildozer/android/platform/android-sdk
-          
-          # Buat folder SDK
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk
-          
-          # Download SDK tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q commandlinetools-linux-11076708_latest.zip
-          
-          # Setup cmdline-tools
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          
-          # Set environment
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          # Install Android SDK via apt (lebih mudah)
+          sudo apt-get install -y android-sdk
+          export ANDROID_HOME=/usr/lib/android-sdk
+          echo "ANDROID_HOME=/usr/lib/android-sdk" >> $GITHUB_ENV
           
           # Accept licenses
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | sudo $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
           
-          # Install SDK components
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-31" \
-            "build-tools;31.0.0"
-          
-          # BUAT SYMLINK untuk kompatibilitas buildozer
-          mkdir -p $ANDROID_HOME/tools/bin
-          ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
-          ln -s $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $ANDROID_HOME/tools/bin/avdmanager
-          
-          # Copy ke lokasi buildozer
-          mkdir -p $HOME/.buildozer/android/platform
-          cp -r $HOME/android-sdk $HOME/.buildozer/android/platform/
-          
-          # Environment variables
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/tools/bin" >> $GITHUB_PATH
-          
-          echo "✅ Android SDK siap dengan symlink!"
+          # Install build-tools
+          sudo $ANDROID_HOME/tools/bin/sdkmanager "build-tools;30.0.3" || true
       
       - name: Fix buildozer.spec
         run: |
@@ -89,31 +86,48 @@ jobs:
           warn_on_root = 1
 
           [android]
-          api = 31
+          api = 30
           minapi = 21
-          ndk = 25b
+          ndk = 23b
           permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
           android.permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
-          android.api = 31
+          android.api = 30
           android.minapi = 21
-          android.ndk = 25b
+          android.ndk = 23b
           android.accept_sdk_license = True
+          android.ndk_path = /usr/lib/android-sdk/ndk/23.2.8568313
           EOF
+      
+      - name: Install specific NDK version
+        run: |
+          cd /usr/lib/android-sdk
+          sudo mkdir -p ndk
+          sudo wget -q https://dl.google.com/android/repository/android-ndk-r23b-linux.zip
+          sudo unzip -q android-ndk-r23b-linux.zip
+          sudo mv android-ndk-r23b ndk/23.2.8568313
       
       - name: Build APK
         run: |
           export USER=runner
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools/bin
+          export ANDROID_HOME=/usr/lib/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
           
-          # Bersihkan
+          # Clean
           rm -rf bin .buildozer
           
-          # Build
-          buildozer android debug
+          # Build with specific flags
+          buildozer android debug 2>&1 | tee build.log
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: RNSMV2-APK
           path: bin/*.apk
+          if-no-files-found: warn
+      
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
