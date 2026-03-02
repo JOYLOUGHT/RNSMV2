@@ -1,5 +1,4 @@
-
-name: Build APK Final
+name: Build APK Docker
 
 on:
   workflow_dispatch:
@@ -10,60 +9,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Fix buildozer.spec
+      - name: Build with Docker
         run: |
-          cat > buildozer.spec << 'EOF'
-          [app]
-          title = Pinjaman Cepat Cair
-          package.name = pinjolcepat
-          package.domain = com.pinjol.cepat
-          source.dir = .
-          source.include_exts = py,png,jpg,kv,ttf,json
-          version = 1.0.0
-          requirements = python3,kivy==2.1.0,requests,android,pyjnius,prctl
-          orientation = portrait
-          osx.python_version = 3
-          osx.kivy_version = 2.1.0
-          fullscreen = 0
-
-          [buildozer]
-          log_level = 2
-          warn_on_root = 1
-
-          [android]
-          api = 31
-          minapi = 21
-          ndk = 25b
-          permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
-          android.permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
-          android.api = 31
-          android.minapi = 21
-          android.ndk = 25b
-          android.gradle_dependencies = 'androidx.core:core:1.9.0'
-          EOF
-          echo "✅ buildozer.spec fixed"
-          cat buildozer.spec
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-pip git unzip openjdk-17-jdk
-          pip3 install --user buildozer cython virtualenv
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
-      - name: Build APK
-        run: |
-          export USER=runner
-          buildozer android debug || true
-          echo "🔍 Mencari APK..."
-          find $PWD -name "*.apk" -type f
-          ls -la bin/ || echo "bin folder tidak ada"
-      
+          docker run --rm -v $PWD:/app misosoup/kivy-buildozer android debug
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RNSMV2-APK-FINAL
-          path: |
-            bin/*.apk
-            **/*.apk
-          if-no-files-found: warn
+          name: RNSMV2-APK
+          path: bin/*.apk
