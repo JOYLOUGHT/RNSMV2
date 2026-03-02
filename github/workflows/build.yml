@@ -1,0 +1,65 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            git \
+            unzip \
+            openjdk-17-jdk \
+            wget \
+            curl \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            cmake
+      
+      - name: Install Buildozer
+        run: |
+          pip3 install --user --upgrade pip
+          pip3 install --user buildozer cython virtualenv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Build APK
+        run: |
+          export USER=runner
+          # Biarkan buildozer yang download SDK sendiri
+          buildozer android debug || true
+          
+      - name: Find and Upload APK
+        run: |
+          echo "🔍 Mencari file APK..."
+          find . -name "*.apk" -type f
+          mkdir -p upload
+          find . -name "*.apk" -type f -exec cp {} upload/ \;
+          ls -la upload/
+        continue-on-error: true
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RNSMV2-APK
+          path: |
+            **/*.apk
+            upload/*.apk
+          if-no-files-found: warn
+      
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            .buildozer/*.log
+            *.log
