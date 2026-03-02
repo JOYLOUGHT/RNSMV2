@@ -20,43 +20,56 @@ jobs:
           sudo apt install -y python3-pip openjdk-17-jdk git unzip wget
           pip3 install buildozer cython virtualenv
       
-      - name: Setup Android SDK manually (FIX LICENSE)
+      - name: Setup Android SDK (FINAL FIX)
         run: |
-          # Buat folder SDK
+          # Bersihkan folder lama
+          rm -rf $HOME/android-sdk
+          rm -rf $HOME/.buildozer/android/platform/android-sdk
+          
+          # Buat folder dengan struktur yang benar
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk
           
-          # Download command line tools
+          # Download SDK tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           unzip -q commandlinetools-linux-11076708_latest.zip
-          mv cmdline-tools cmdline-tools/latest
+          
+          # CARA BARU: langsung taruh di folder yang benar
+          rm -rf cmdline-tools  # hapus folder hasil extract
+          mkdir -p cmdline-tools/latest
+          unzip -q commandlinetools-linux-11076708_latest.zip -d cmdline-tools/latest
+          
+          # Hapus folder dalam jika ada
+          if [ -d "cmdline-tools/latest/cmdline-tools" ]; then
+            mv cmdline-tools/latest/cmdline-tools/* cmdline-tools/latest/
+            rm -rf cmdline-tools/latest/cmdline-tools
+          fi
           
           # Set environment
           export ANDROID_HOME=$HOME/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           
-          # Auto accept ALL licenses (pakai yes)
+          # Accept licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
           
-          # Install SDK components yang dibutuhkan (versi stabil)
+          # Install SDK components
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-31" \
-            "build-tools;31.0.0" \
-            "build-tools;30.0.3"
+            "build-tools;31.0.0"
           
           # Copy ke lokasi buildozer
           mkdir -p $HOME/.buildozer/android/platform
           cp -r $HOME/android-sdk $HOME/.buildozer/android/platform/
           
-          # Set env untuk step selanjutnya
+          # Set environment variables
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
           
           echo "✅ Android SDK siap!"
       
-      - name: Fix buildozer.spec (pakai API 31)
+      - name: Fix buildozer.spec
         run: |
           cat > buildozer.spec << 'EOF'
           [app]
@@ -86,9 +99,7 @@ jobs:
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
-          android.gradle_dependencies = 'androidx.core:core:1.9.0'
           EOF
-          echo "✅ buildozer.spec updated"
       
       - name: Build APK
         run: |
@@ -96,32 +107,14 @@ jobs:
           export ANDROID_HOME=$HOME/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           
-          # Bersihkan build sebelumnya
+          # Clean
           rm -rf bin .buildozer
           
-          # Build dengan log
-          buildozer android debug 2>&1 | tee build.log
-          
-          # Cek hasil
-          if [ -f bin/*.apk ]; then
-            echo "✅ APK berhasil dibuat!"
-            ls -la bin/
-          else
-            echo "❌ APK gagal dibuat"
-            echo "=== Last 50 lines of log ==="
-            tail -n 50 build.log
-          fi
+          # Build
+          buildozer android debug
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: RNSMV2-APK
           path: bin/*.apk
-          if-no-files-found: warn
-      
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
