@@ -44,78 +44,119 @@ jobs:
             pkg-config \
             cmake \
             sudo \
-            lsof
+            lsof \
+            android-sdk \
+            android-sdk-platform-common
       
-      - name: Install Buildozer
+      - name: Install Python packages
         run: |
           pip install --user --upgrade pip
           pip install --user cython virtualenv
           pip install --user buildozer
+          pip install --user pyjnius
+          pip install --user requests
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       
-      - name: Cache Buildozer dependencies
+      - name: Setup Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+          
+          # Download command line tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip -d $HOME/android-sdk/cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          
+          # Accept licenses
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          
+          # Install platform tools
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+      
+      - name: Cache Buildozer
         uses: actions/cache@v4
         with:
           path: ~/.buildozer
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-
       
-      - name: Build with Buildozer
+      - name: Debug - List files
         run: |
-          # Fix permission issues
+          echo "📁 Current directory:"
+          pwd
+          echo "📄 Files in repo:"
+          ls -la
+          echo "📄 Content of main.py (first 50 lines):"
+          head -n 50 main.py || echo "main.py not found"
+          echo "📄 Content of buildozer.spec:"
+          cat buildozer.spec
+      
+      - name: Fix permissions
+        run: |
+          sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          chmod +x $GITHUB_WORKSPACE
+      
+      - name: Build with Buildozer (Debug Mode)
+        run: |
           export USER=runner
-          export HOME=/home/runner
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           
           # Clean previous builds
           rm -rf .buildozer bin || true
           
-          # Run buildozer
-          buildozer android debug || true
+          # Run buildozer with verbose output
+          buildozer android debug 2>&1 | tee buildozer.log
           
-          # Check if APK was created
-          if [ -f bin/*.apk ]; then
-            echo "✅ APK berhasil dibuat!"
+          # Check if buildozer.log was created
+          if [ -f buildozer.log ]; then
+            echo "✅ buildozer.log created"
+          else
+            echo "❌ buildozer.log not found"
+          fi
+      
+      - name: Check for APK
+        id: check_apk
+        run: |
+          if ls bin/*.apk 1> /dev/null 2>&1; then
+            echo "✅ APK found!"
+            echo "apk_found=true" >> $GITHUB_OUTPUT
+            echo "APK path:"
             ls -la bin/
           else
-            echo "❌ APK gagal dibuat, coba dengan opsi lain..."
-            # Coba dengan arsitektur spesifik
-            buildozer android debug --arch=armeabi-v7a
+            echo "❌ No APK found"
+            echo "apk_found=false" >> $GITHUB_OUTPUT
+            echo "Contents of bin directory:"
+            ls -la bin/ || echo "bin directory not found"
           fi
       
-      - name: Find APK
-        id: find_apk
-        run: |
-          APK_PATH=$(find bin -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-            echo "✅ APK ditemukan: $APK_PATH"
-          else
-            echo "❌ APK tidak ditemukan"
-          fi
-      
-      - name: Upload APK
-        if: steps.find_apk.outputs.apk_path != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: RNSMV2-APK
-          path: ${{ steps.find_apk.outputs.apk_path }}
-          retention-days: 30
-          if-no-files-found: warn
-      
-      - name: Upload full build log
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: .buildozer/*.log
-          retention-days: 7
+          name: buildozer-log
+          path: |
+            buildozer.log
+            .buildozer/*.log
+          retention-days: 30
+          if-no-files-found: warn
       
-      - name: Show result
+      - name: Upload APK
+        if: steps.check_apk.outputs.apk_found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RNSMV2-APK
+          path: bin/*.apk
+          retention-days: 30
+      
+      - name: Show error summary
+        if: failure()
         run: |
-          echo "📱 Build process selesai"
-          if [ -f bin/*.apk ]; then
-            echo "✅ APK tersedia di artifacts"
+          echo "❌ Build failed!"
+          echo "Last 50 lines of buildozer.log:"
+          if [ -f buildozer.log ]; then
+            tail -n 50 buildozer.log
           else
-            echo "❌ Build gagal, cek log untuk detail"
+            echo "buildozer.log not found"
           fi
