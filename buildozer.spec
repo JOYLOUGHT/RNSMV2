@@ -16,12 +16,12 @@ log_level = 2
 warn_on_root = 1
 
 [android]
-api = 33
+api = 31
 minapi = 21
 ndk = 25b
 permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
 android.permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
-android.api = 33
+android.api = 31
 android.minapi = 21
 android.ndk = 25b
 android.gradle_dependencies = 'androidx.core:core:1.9.0'
