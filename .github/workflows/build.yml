@@ -1,8 +1,6 @@
 name: Build APK
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -11,61 +9,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            python3-dev \
-            git \
-            unzip \
-            openjdk-17-jdk \
-            wget \
-            curl \
-            build-essential \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake
+          sudo apt update
+          sudo apt install -y python3-pip openjdk-17-jdk git unzip
+          pip3 install buildozer cython virtualenv
       
-      - name: Install Python packages (simple version)
-        run: |
-          python3 -m pip install --user --upgrade pip
-          python3 -m pip install --user buildozer cython virtualenv
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
-      - name: Verify files
+      - name: Debug - List files before build
         run: |
           echo "📁 Current directory:"
           pwd
-          echo "📄 Files in repository:"
+          echo "📄 All files:"
           ls -la
-          echo "📄 Checking main.py:"
-          if [ -f main.py ]; then
-            echo "✅ main.py exists"
-            wc -l main.py
-            head -n 5 main.py
-          else
-            echo "❌ main.py not found!"
-          fi
-          echo "📄 Checking buildozer.spec:"
-          if [ -f buildozer.spec ]; then
-            echo "✅ buildozer.spec exists"
-            cat buildozer.spec
-          else
-            echo "❌ buildozer.spec not found!"
-          fi
+          echo "📄 Check main.py:"
+          cat main.py | head -20
       
       - name: Build APK
         run: |
-          export USER=runner
-          buildozer android debug || echo "Build failed but continuing..."
+          buildozer android debug
       
-      - name: Upload artifacts
+      - name: Debug - List files after build
+        run: |
+          echo "📁 After build:"
+          ls -la
+          echo "📁 Check bin folder:"
+          ls -la bin/ || echo "bin folder tidak ada"
+          echo "📁 Check .buildozer folder:"
+          ls -la .buildozer/ || echo ".buildozer folder tidak ada"
+          echo "🔍 Cari file .apk:"
+          find . -name "*.apk" || echo "Tidak ada file .apk"
+      
+      - name: Upload all artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: apk-artifacts
+          name: build-results
           path: |
-            bin/*.apk
-            *.log
+            **/*.apk
+            **/*.log
+            bin/
+            .buildozer/
