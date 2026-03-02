@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install system dependencies (FIXED)
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,13 +37,13 @@ jobs:
           pip3 install --user buildozer cython virtualenv
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       
-      - name: Setup Android SDK (FIXED)
+      - name: Setup Android SDK (FINAL FIX)
         run: |
-          # Hapus folder lama jika ada
+          # Bersihkan semua
           rm -rf $HOME/android-sdk
           rm -rf $HOME/.buildozer/android/platform/android-sdk
           
-          # Buat folder baru
+          # Buat struktur folder yang benar
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk
           
@@ -51,11 +51,11 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
           
-          # Pindahkan ke lokasi yang benar
-          mv cmdline-tools cmdline-tools/latest
-          mkdir -p latest
-          mv cmdline-tools/latest latest/
+          # CARA BARU: langsung extract ke folder yang benar
           rm -rf cmdline-tools
+          unzip -q commandlinetools-linux-9477386_latest.zip -d temp
+          mv temp/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          rm -rf temp
           
           # Set environment
           export ANDROID_HOME=$HOME/android-sdk
@@ -74,9 +74,12 @@ jobs:
           mkdir -p $HOME/.buildozer/android/platform
           cp -r $HOME/android-sdk $HOME/.buildozer/android/platform/
           
+          # Set environment variables untuk step selanjutnya
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+          
+          echo "✅ Android SDK siap!"
       
       - name: Build APK
         run: |
@@ -87,8 +90,8 @@ jobs:
           # Bersihkan build sebelumnya
           rm -rf bin .buildozer
           
-          # Build dengan log lengkap
-          buildozer android debug 2>&1 | tee build.log
+          # Build
+          buildozer android debug
       
       - name: Upload APK
         if: success()
@@ -96,11 +99,3 @@ jobs:
         with:
           name: RNSMV2-APK
           path: bin/*.apk
-          if-no-files-found: warn
-      
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
