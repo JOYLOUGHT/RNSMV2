@@ -17,7 +17,7 @@ warn_on_root = 1
 [android]
 api = 31
 minapi = 21
-ndk = 23b
+ndk = 25
 sdk = 31
 
 permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
@@ -28,5 +28,5 @@ android.accept_sdk_license = True
 [requirements]
 android.api = 31
 android.minapi = 21
-android.ndk = 23b
+android.ndk = 25
 android.sdk = 31
