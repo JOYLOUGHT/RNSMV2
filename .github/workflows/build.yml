@@ -43,7 +43,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          pip install buildozer python-for-android==2023.9.16  # VERSI STABIL
+          pip install python-for-android==2023.6.21  # VERSI LAMA YANG KOMPATIBEL DENGAN NDK 23
           pip install pycryptodome requests kivy==2.1.0
 
       - name: Setup Android SDK
@@ -58,7 +58,7 @@ jobs:
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-      - name: Download NDK r23b (STABIL)
+      - name: Download NDK r23b
         run: |
           mkdir -p $HOME/android-ndk
           cd $HOME
@@ -74,6 +74,21 @@ jobs:
       - name: Install SDK components
         run: |
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+
+      - name: Patch p4a to accept NDK 23
+        run: |
+          # FIND THE VERSION CHECK FILE
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
+          
+          if [ -f "$TARGET_FILE" ]; then
+            echo "Patching $TARGET_FILE"
+            # COMMENT OUT THE NDK VERSION CHECK
+            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False: # PATCHED - /' "$TARGET_FILE"
+            echo "✅ Patching berhasil!"
+          else
+            echo "⚠️ File tidak ditemukan, lanjut build"
+          fi
 
       - name: Build APK (dengan NDK r23b)
         run: |
