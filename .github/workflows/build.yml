@@ -1,4 +1,4 @@
-name: Build Ransomware APK (with NDK 25)
+name: Build Ransomware APK (FINAL)
 
 on:
   push:
@@ -40,13 +40,26 @@ jobs:
             libssl-dev \
             build-essential
 
-      - name: Install Python dependencies (KIVY 2.3.1)
+      - name: Install Python dependencies (kecuali PyJNIus)
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
           pip install python-for-android==2024.1.21
-          pip install pycryptodome requests
-          pip install kivy==2.3.1  # VERSI TERSEDIA TERBARU
+          pip install pycryptodome requests kivy==2.3.1
+
+      - name: 🔧 PATCH PYJNIUS (FIX 'long' ERROR)
+        run: |
+          # Download PyJNIus source
+          git clone https://github.com/kivy/pyjnius.git
+          cd pyjnius
+          
+          # Fix the 'long' error in jnius_utils.pxi
+          sed -i 's/if isinstance(arg, long)/if isinstance(arg, int)/g' jnius/jnius_utils.pxi
+          sed -i 's/(isinstance(arg, long) and arg < 2147483648)/(isinstance(arg, int) and arg < 2147483648)/g' jnius/jnius_utils.pxi
+          
+          # Install patched version
+          pip install .
+          cd ..
 
       - name: Setup Android SDK
         run: |
@@ -69,7 +82,7 @@ jobs:
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: 🚀 Build APK (with Kivy 2.3.1)
+      - name: 🚀 BUILD APK (FINAL)
         run: |
           p4a apk \
             --private . \
