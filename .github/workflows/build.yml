@@ -5,17 +5,17 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:  # Bisa dijalankan manual
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Update ke v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # Update ke v5
         with:
           python-version: '3.9'
 
@@ -43,14 +43,14 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          pip install buildozer python-for-android
+          pip install buildozer python-for-android pycryptodome
 
       - name: Setup Android SDK
         run: |
           mkdir -p $HOME/android-sdk
           cd $HOME/android-sdk
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -o commandlinetools-linux-9477386_latest.zip
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -o commandlinetools-linux-11076708_latest.zip
           mkdir -p cmdline-tools/latest
           mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
           
@@ -65,10 +65,6 @@ jobs:
       - name: Install SDK components
         run: |
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
-
-      - name: Install pycryptodome for encryption
-        run: |
-          pip install pycryptodome
 
       - name: Build APK with python-for-android
         run: |
@@ -87,7 +83,8 @@ jobs:
             --release
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Update ke v4
         with:
           name: ransomware-apk
           path: ./*.apk
+          if-no-files-found: error  # Tambahin ini biar jelas kalo gagal
