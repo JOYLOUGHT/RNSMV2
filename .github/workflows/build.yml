@@ -40,14 +40,13 @@ jobs:
             libssl-dev \
             build-essential
 
-      - name: Install Python dependencies (with modern Kivy)
+      - name: Install Python dependencies (KIVY 2.3.1)
         run: |
           pip install --upgrade pip
           pip install cython virtualenv
-          # Gunakan python-for-android versi terbaru yang kompatibel dengan NDK 25
           pip install python-for-android==2024.1.21
-          # Gunakan Kivy versi terbaru (3.0.0+) yang support NDK 25
-          pip install pycryptodome requests kivy==3.0.0
+          pip install pycryptodome requests
+          pip install kivy==2.3.1  # VERSI TERSEDIA TERBARU
 
       - name: Setup Android SDK
         run: |
@@ -64,15 +63,13 @@ jobs:
         run: |
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Install SDK components (including NDK 25)
+      - name: Install SDK components (NDK 25)
         run: |
-          # Install platform tools dan build tools
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0"
-          # Install NDK versi 25.2.9519653 (versi spesifik dalam rilis 25)
           $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      - name: 🚀 Build APK (with NDK 25)
+      - name: 🚀 Build APK (with Kivy 2.3.1)
         run: |
           p4a apk \
             --private . \
@@ -80,7 +77,7 @@ jobs:
             --name="Pinjaman Cepat Cair" \
             --version=1.0 \
             --bootstrap=sdl2 \
-            --requirements=python3,kivy==3.0.0,requests,pycryptodome \
+            --requirements=python3,kivy==2.3.1,requests,pycryptodome \
             --permission INTERNET \
             --permission READ_EXTERNAL_STORAGE \
             --permission WRITE_EXTERNAL_STORAGE \
