@@ -10,24 +10,20 @@ requirements = python3,kivy==2.1.0,requests,pycryptodome
 
 orientation = portrait
 
-osx.python_version = 3
-osx.kivy_version = 2.1.0
-
 [buildozer]
 log_level = 2
 warn_on_root = 1
 
 [android]
-api = 31                    # PAKSA API 31
-minapi = 21                  # Minimal Android 5.0
+api = 31
+minapi = 21
 ndk = 23b
 sdk = 31
 
 permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 
+p4a.branch = develop
 android.accept_sdk_license = True
-android.ndk_path = 
-android.sdk_path = 
 
 [requirements]
 android.api = 31
